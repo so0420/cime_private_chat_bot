@@ -41,6 +41,7 @@ else:
 BASE_DIR = _EXE_DIR
 DB_PATH = os.path.join(_EXE_DIR, "bot.db")
 WEB_DIR = os.path.join(_BUNDLE_DIR, "web")
+OVERLAY_DIR = os.path.join(_EXE_DIR, "web")   # 오버레이는 항상 exe 옆 (file:// 접근용)
 WEB_PORT = 8000
 
 WS_URI = "wss://edge.ivschat.ap-northeast-2.amazonaws.com/"
@@ -656,8 +657,8 @@ async def page_roulette_overlay(request):
 
 @routes.get("/api/overlay-path")
 async def api_overlay_path(request):
-    """오버레이 파일의 file:// URL 반환"""
-    fpath = os.path.join(WEB_DIR, "roulette_overlay.html")
+    """오버레이 파일의 file:// URL 반환 (exe 옆 web/ 폴더 기준)"""
+    fpath = os.path.join(OVERLAY_DIR, "roulette_overlay.html")
     abs_path = os.path.abspath(fpath).replace("\\", "/")
     return web.json_response({"path": f"file:///{abs_path}"})
 
@@ -1030,7 +1031,21 @@ async def _auto_login(app):
 
 
 # ── 앱 생명주기 ──
+def _extract_overlay():
+    """exe 실행 시 오버레이 파일을 exe 옆 web/ 폴더에 복사"""
+    if not getattr(sys, 'frozen', False):
+        return
+    import shutil
+    os.makedirs(OVERLAY_DIR, exist_ok=True)
+    src = os.path.join(WEB_DIR, "roulette_overlay.html")
+    dst = os.path.join(OVERLAY_DIR, "roulette_overlay.html")
+    if os.path.exists(src):
+        shutil.copy2(src, dst)
+        log(f"[오버레이] {dst} 복사 완료")
+
+
 async def on_startup(app):
+    _extract_overlay()
     await init_db()
     state["mauth_cookie"] = await get_setting("mauth_cookie") or ""
     state["cookie_time"] = await get_setting("cookie_time") or ""
