@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<title>씨미 챗봇 관리</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f5f5; color: #333; line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  /* 헤더 */
+  .header {
+    text-align: center; padding: 32px 0 24px;
+    border-bottom: 1px solid #ddd; margin-bottom: 24px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { color: #888; font-size: 14px; margin-top: 6px; }
+
+  /* 상태바 */
+  .status-bar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 13px;
+    background: #fff; border: 1px solid #ddd;
+  }
+  .status-chip .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .dot-green { background: #22c55e; }
+  .dot-red   { background: #ef4444; }
+  .dot-yellow{ background: #eab308; }
+
+  /* 카드 */
+  .card {
+    background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+    padding: 24px; margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 18px; font-weight: 600; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid #eee;
+  }
+
+  /* 폼 요소 */
+  label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 4px; }
+  input[type="text"], input[type="email"], input[type="password"], textarea {
+    width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 14px; background: #fafafa; outline: none; transition: border .2s;
+  }
+  input:focus, textarea:focus { border-color: #333; background: #fff; }
+  textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+  .form-row { margin-bottom: 12px; }
+  .form-row-inline { display: flex; gap: 10px; align-items: flex-end; }
+  .form-row-inline .form-row { flex: 1; margin-bottom: 0; }
+
+  /* 버튼 */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 22px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 500; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-dark { background: #333; color: #fff; }
+  .btn-outline { background: #fff; color: #333; border: 1px solid #ccc; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fca5a5; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* 토글 스위치 */
+  .toggle { position: relative; display: inline-block; width: 42px; height: 24px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle .slider {
+    position: absolute; inset: 0; background: #ccc; border-radius: 24px;
+    transition: .25s; cursor: pointer;
+  }
+  .toggle .slider::before {
+    content: ''; position: absolute; width: 18px; height: 18px;
+    left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
+    transition: .25s;
+  }
+  .toggle input:checked + .slider { background: #333; }
+  .toggle input:checked + .slider::before { transform: translateX(18px); }
+
+  /* 명령어 목록 */
+  .cmd-list { list-style: none; }
+  .cmd-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  .cmd-item:last-child { border-bottom: none; }
+  .cmd-trigger {
+    font-weight: 600; font-size: 15px; min-width: 100px;
+    color: #111; flex-shrink: 0;
+  }
+  .cmd-response { flex: 1; font-size: 13px; color: #666; word-break: break-all; }
+  .cmd-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0;
+    white-space: nowrap;
+  }
+  .cmd-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* 변수 안내 */
+  .var-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .var-chip {
+    font-size: 12px; padding: 3px 10px; border-radius: 6px;
+    background: #f5f5f5; border: 1px solid #e0e0e0; color: #555;
+    font-family: 'Consolas', monospace;
+  }
+
+  /* 출석 테이블 */
+  .att-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .att-table th, .att-table td {
+    padding: 8px 12px; text-align: left; border-bottom: 1px solid #f0f0f0;
+  }
+  .att-table th { font-weight: 600; color: #888; font-size: 12px; }
+
+  /* 알림 */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 10px 24px; border-radius: 8px; font-size: 14px;
+    background: #333; color: #fff; z-index: 999;
+    opacity: 0; transition: opacity .3s;
+  }
+  .toast.show { opacity: 1; }
+
+  /* 모달 */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 28px;
+    width: 90%; max-width: 480px; box-shadow: 0 8px 30px rgba(0,0,0,.15);
+  }
+  .modal h3 { font-size: 18px; margin-bottom: 16px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .note { font-size: 12px; color: #999; margin-top: 4px; }
+  .section-gap { height: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- 헤더 -->
+  <div class="header">
+    <h1>씨미 챗봇 관리</h1>
+    <p>명령어 · 출석체크 · 후원 메세지 · 룰렛</p>
+    <div style="margin-top:12px;">
+      <button class="btn btn-outline btn-sm" onclick="location.href='/roulette'">룰렛 설정 페이지로 이동</button>
+    </div>
+  </div>
+
+  <!-- 상태바 -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-chip"><span class="dot dot-red" id="dotBot"></span><span id="lblBot">봇 꺼짐</span></span>
+    <span class="status-chip"><span class="dot dot-red" id="dotCookie"></span><span id="lblCookie">로그인 필요</span></span>
+  </div>
+
+  <!-- 봇 설정 -->
+  <div class="card">
+    <h2>봇 설정</h2>
+    <div class="form-row">
+      <label>스트리머 채널 슬러그</label>
+      <div class="form-row-inline">
+        <div class="form-row"><input type="text" id="inSlug" placeholder="예: jamkubot"></div>
+        <button class="btn btn-dark btn-sm" onclick="saveSlug()">저장</button>
+      </div>
+      <p class="note">ci.me/{슬러그} 형태의 채널 주소에서 슬러그 부분을 입력하세요. (예: jamkubot)</p>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-dark" id="btnStart" onclick="botStart()">봇 시작</button>
+      <button class="btn btn-outline" id="btnStop" onclick="botStop()" disabled>봇 중지</button>
+    </div>
+    <div id="channelInfo" style="margin-top:12px;font-size:13px;color:#888;"></div>
+
+    <!-- 연결된 채널 정보 (블러) -->
+    <div id="savedChannelBox" style="display:none; margin-top:12px; padding:12px 16px; background:#f9f9f9; border:1px solid #eee; border-radius:8px;">
+      <div style="font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">연결된 채널</div>
+      <div style="display:flex;gap:16px;align-items:center;">
+        <span style="font-size:13px;color:#888;">슬러그:</span>
+        <span id="savedSlug" style="font-size:13px;color:#333;filter:blur(3px);user-select:none;transition:filter .2s;" onmouseenter="this.style.filter='none'" onmouseleave="this.style.filter='blur(3px)'"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 로그인 -->
+  <div class="card">
+    <h2>로그인</h2>
+    <p class="note" style="margin-bottom:12px;">ci.me 로그인 → 쿠키 자동 추출 (24시간 유지)</p>
+
+    <!-- 저장된 계정 표시 (블러) -->
+    <div id="savedCredBox" style="display:none; margin-bottom:14px; padding:12px 16px; background:#f9f9f9; border:1px solid #eee; border-radius:8px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:500;color:#555;">저장된 계정</span>
+        <span class="status-chip" style="padding:2px 10px;font-size:11px;" id="credBadge">저장됨</span>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;">
+        <span style="font-size:13px;color:#888;">이메일:</span>
+        <span id="savedEmail" style="font-size:13px;color:#333;filter:blur(3px);user-select:none;transition:filter .2s;" onmouseenter="this.style.filter='none'" onmouseleave="this.style.filter='blur(3px)'"></span>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;margin-top:4px;">
+        <span style="font-size:13px;color:#888;">비밀번호:</span>
+        <span id="savedPw" style="font-size:13px;color:#333;filter:blur(3px);user-select:none;transition:filter .2s;" onmouseenter="this.style.filter='none'" onmouseleave="this.style.filter='blur(3px)'"></span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-dark btn-sm" id="btnRelogin" onclick="doRelogin()">재로그인</button>
+        <button class="btn btn-outline btn-sm" onclick="showNewLoginForm()">다른 계정 사용</button>
+      </div>
+    </div>
+
+    <!-- 새 계정 입력 폼 -->
+    <div id="newLoginForm">
+      <div class="form-row">
+        <label>이메일</label>
+        <input type="email" id="inEmail" placeholder="이메일 주소">
+      </div>
+      <div class="form-row">
+        <label>비밀번호</label>
+        <input type="password" id="inPw" placeholder="비밀번호">
+      </div>
+      <button class="btn btn-dark" id="btnLogin" onclick="doLogin()" style="margin-top:4px;">로그인</button>
+    </div>
+    <p class="note" id="loginNote" style="margin-top:6px;"></p>
+  </div>
+
+  <!-- 명령어 관리 -->
+  <div class="card">
+    <h2>명령어 관리</h2>
+    <div class="var-list" style="margin-bottom:14px;">
+      <span class="var-chip">&lt;보낸사람&gt;</span>
+      <span class="var-chip">&lt;출석횟수&gt;</span>
+      <span class="var-chip">&lt;업타임&gt;</span>
+      <span class="var-chip">&lt;방제&gt;</span>
+      <span class="var-chip">&lt;카테고리&gt;</span>
+      <span class="var-chip">&lt;팔로우&gt;</span>
+    </div>
+    <ul class="cmd-list" id="cmdList"></ul>
+    <button class="btn btn-dark" onclick="openAddModal()" style="margin-top:12px;">+ 명령어 추가</button>
+  </div>
+
+  <!-- 후원 메세지 -->
+  <div class="card">
+    <h2>후원 감사 메세지</h2>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <label style="margin:0;">활성화</label>
+      <label class="toggle">
+        <input type="checkbox" id="chkDonation" onchange="saveDonation()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>응답 메세지</label>
+      <textarea id="inDonMsg" placeholder="<보낸사람>님 <받은금액>원 후원 감사합니다!"></textarea>
+      <div class="var-list" style="margin-top:6px;">
+        <span class="var-chip">&lt;보낸사람&gt;</span>
+        <span class="var-chip">&lt;받은금액&gt;</span>
+        <span class="var-chip">&lt;업타임&gt;</span>
+        <span class="var-chip">&lt;방제&gt;</span>
+        <span class="var-chip">&lt;카테고리&gt;</span>
+        <span class="var-chip">&lt;팔로우&gt;</span>
+      </div>
+    </div>
+    <button class="btn btn-dark btn-sm" onclick="saveDonation()" style="margin-top:8px;">저장</button>
+  </div>
+
+  <!-- 출석 통계 -->
+  <div class="card">
+    <h2>출석 통계</h2>
+    <table class="att-table">
+      <thead><tr><th>#</th><th>닉네임</th><th>출석 횟수</th><th>마지막 출석</th></tr></thead>
+      <tbody id="attBody"></tbody>
+    </table>
+    <p class="note" style="margin-top:8px;" id="attEmpty">데이터 없음</p>
+  </div>
+</div>
+
+<!-- 추가/수정 모달 -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">명령어 추가</h3>
+    <div class="form-row">
+      <label>명령어 (트리거)</label>
+      <input type="text" id="mTrigger" placeholder="예: !출석">
+    </div>
+    <div class="form-row">
+      <label>응답 메세지</label>
+      <textarea id="mResponse" placeholder="예: <보낸사람>님 <출석횟수>번째 출석체크입니다."></textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label style="margin:0;">출석체크 명령어</label>
+      <label class="toggle">
+        <input type="checkbox" id="mAtt">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <p class="note">출석체크 활성화 시 하루 1회만 응답하며 &lt;출석횟수&gt; 변수를 사용할 수 있습니다.</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">취소</button>
+      <button class="btn btn-dark" id="btnModalSave" onclick="saveCommand()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let editingId = null;
+
+// ── 유틸 ──
+function toast(msg, ms = 2000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), ms);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  return res.json();
+}
+
+// ── 상태 폴링 ──
+async function pollStatus() {
+  try {
+    const s = await api('/api/status');
+    const dotBot = document.getElementById('dotBot');
+    const lblBot = document.getElementById('lblBot');
+    const dotCk = document.getElementById('dotCookie');
+    const lblCk = document.getElementById('lblCookie');
+
+    if (s.connected) {
+      dotBot.className = 'dot dot-green'; lblBot.textContent = '연결됨';
+    } else if (s.running) {
+      dotBot.className = 'dot dot-yellow'; lblBot.textContent = '연결 중...';
+    } else {
+      dotBot.className = 'dot dot-red'; lblBot.textContent = '봇 꺼짐';
+    }
+
+    document.getElementById('btnStart').disabled = s.running;
+    document.getElementById('btnStop').disabled = !s.running;
+
+    if (s.cookie_valid) {
+      dotCk.className = 'dot dot-green'; lblCk.textContent = '로그인됨';
+    } else if (s.cookie_time) {
+      dotCk.className = 'dot dot-yellow'; lblCk.textContent = '만료됨 (재로그인 필요)';
+    } else {
+      dotCk.className = 'dot dot-red'; lblCk.textContent = '로그인 필요';
+    }
+
+    if (s.streamer_slug) document.getElementById('inSlug').value = s.streamer_slug;
+
+    const ci = s.channel_info || {};
+    const info = document.getElementById('channelInfo');
+    if (ci.title) {
+      info.innerHTML = `<b>${ci.title}</b> · ${ci.category || '-'}`;
+    } else {
+      info.textContent = '';
+    }
+  } catch (e) {}
+}
+
+// ── 봇 시작/중지 ──
+async function botStart() {
+  const r = await api('/api/bot/start', { method: 'POST' });
+  if (r.ok) toast('봇 시작됨'); else toast(r.error || '실패');
+  pollStatus();
+}
+async function botStop() {
+  const r = await api('/api/bot/stop', { method: 'POST' });
+  if (r.ok) toast('봇 중지됨'); else toast(r.error || '실패');
+  pollStatus();
+}
+async function saveSlug() {
+  const slug = document.getElementById('inSlug').value.trim();
+  if (!slug) return toast('슬러그를 입력하세요.');
+  await api('/api/settings', { method: 'PUT', body: JSON.stringify({ streamer_slug: slug }) });
+  toast('저장됨');
+}
+
+// ── 로그인 ──
+async function doLogin() {
+  const email = document.getElementById('inEmail').value.trim();
+  const pw = document.getElementById('inPw').value;
+  if (!email || !pw) return toast('이메일과 비밀번호를 입력하세요.');
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = '로그인 중...';
+  const note = document.getElementById('loginNote');
+  note.textContent = '브라우저가 열리며 자동 로그인합니다. 잠시 기다려주세요...';
+  try {
+    const r = await api('/api/login', { method: 'POST', body: JSON.stringify({ email, password: pw }) });
+    if (r.ok) {
+      toast(r.bot_started ? '로그인 성공! 봇이 자동 시작됩니다.' : '로그인 성공!');
+      note.textContent = r.bot_started
+        ? '로그인 성공! 봇이 자동 시작되었습니다. (24시간 유지)'
+        : '로그인 성공! (24시간 유지) — 슬러그를 설정하면 봇이 시작됩니다.';
+      document.getElementById('inEmail').value = '';
+      document.getElementById('inPw').value = '';
+      loadCredentials();
+    } else {
+      toast(r.error || '실패'); note.textContent = r.error || '로그인 실패';
+    }
+  } catch (e) {
+    toast('오류 발생'); note.textContent = '오류: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '로그인';
+  pollStatus();
+}
+
+async function doRelogin() {
+  const btn = document.getElementById('btnRelogin');
+  btn.disabled = true; btn.textContent = '로그인 중...';
+  const note = document.getElementById('loginNote');
+  note.textContent = '저장된 계정으로 재로그인 중...';
+  try {
+    const r = await api('/api/relogin', { method: 'POST' });
+    if (r.ok) {
+      toast(r.bot_started ? '재로그인 성공! 봇이 자동 시작됩니다.' : '재로그인 성공!');
+      note.textContent = r.bot_started
+        ? '재로그인 성공! 봇이 자동 시작되었습니다. (24시간 유지)'
+        : '재로그인 성공! (24시간 유지)';
+    } else { toast(r.error || '실패'); note.textContent = r.error || '재로그인 실패'; }
+  } catch (e) {
+    toast('오류 발생'); note.textContent = '오류: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '재로그인';
+  pollStatus();
+}
+
+function showNewLoginForm() {
+  document.getElementById('savedCredBox').style.display = 'none';
+  document.getElementById('newLoginForm').style.display = '';
+}
+
+async function loadCredentials() {
+  const s = await api('/api/settings');
+  const box = document.getElementById('savedCredBox');
+  const form = document.getElementById('newLoginForm');
+  if (s.login_email_saved) {
+    document.getElementById('savedEmail').textContent = s.login_email_masked || '****';
+    document.getElementById('savedPw').textContent = s.login_password_saved ? '********' : '-';
+    box.style.display = '';
+    form.style.display = 'none';
+  } else {
+    box.style.display = 'none';
+    form.style.display = '';
+  }
+  // 연결된 채널
+  const chBox = document.getElementById('savedChannelBox');
+  if (s.streamer_slug) {
+    document.getElementById('savedSlug').textContent = s.streamer_slug;
+    chBox.style.display = '';
+  } else {
+    chBox.style.display = 'none';
+  }
+}
+
+// ── 명령어 CRUD ──
+async function loadCommands() {
+  const list = await api('/api/commands');
+  const ul = document.getElementById('cmdList');
+  if (!Array.isArray(list) || list.length === 0) {
+    ul.innerHTML = '<li style="padding:12px 0;color:#999;font-size:14px;">등록된 명령어가 없습니다.</li>';
+    return;
+  }
+  ul.innerHTML = list.map(c => `
+    <li class="cmd-item">
+      <span class="cmd-trigger">${esc(c.trigger)}</span>
+      <span class="cmd-response">${esc(c.response)}</span>
+      ${c.is_attendance ? '<span class="cmd-badge">출석</span>' : ''}
+      <span class="cmd-actions">
+        <button class="btn btn-outline btn-sm" onclick="openEditModal(${c.id},'${esc(c.trigger)}',\`${esc(c.response)}\`,${c.is_attendance})">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCmd(${c.id})">삭제</button>
+      </span>
+    </li>
+  `).join('');
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;'); }
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '명령어 추가';
+  document.getElementById('mTrigger').value = '';
+  document.getElementById('mResponse').value = '';
+  document.getElementById('mAtt').checked = false;
+  document.getElementById('modalBg').classList.add('open');
+}
+function openEditModal(id, trigger, response, att) {
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '명령어 수정';
+  document.getElementById('mTrigger').value = trigger;
+  document.getElementById('mResponse').value = response;
+  document.getElementById('mAtt').checked = !!att;
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+
+async function saveCommand() {
+  const trigger = document.getElementById('mTrigger').value.trim();
+  const response = document.getElementById('mResponse').value.trim();
+  const is_attendance = document.getElementById('mAtt').checked;
+  if (!trigger || !response) return toast('명령어와 응답을 입력하세요.');
+
+  const body = JSON.stringify({ trigger, response, is_attendance });
+  let r;
+  if (editingId) {
+    r = await api(`/api/commands/${editingId}`, { method: 'PUT', body });
+  } else {
+    r = await api('/api/commands', { method: 'POST', body });
+  }
+  if (r.error) return toast(r.error);
+  toast('저장됨');
+  closeModal();
+  loadCommands();
+}
+
+async function deleteCmd(id) {
+  if (!confirm('정말 삭제하시겠습니까?')) return;
+  await api(`/api/commands/${id}`, { method: 'DELETE' });
+  toast('삭제됨');
+  loadCommands();
+}
+
+// ── 후원 설정 ──
+async function loadDonation() {
+  const s = await api('/api/settings');
+  document.getElementById('chkDonation').checked = s.donation_enabled === '1';
+  document.getElementById('inDonMsg').value = s.donation_message || '';
+}
+async function saveDonation() {
+  const enabled = document.getElementById('chkDonation').checked ? '1' : '0';
+  const msg = document.getElementById('inDonMsg').value.trim();
+  await api('/api/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ donation_enabled: enabled, donation_message: msg }),
+  });
+  toast('저장됨');
+}
+
+// ── 출석 통계 ──
+async function loadAttendance() {
+  const list = await api('/api/attendance');
+  const tbody = document.getElementById('attBody');
+  const empty = document.getElementById('attEmpty');
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = ''; empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = list.map((r, i) =>
+    `<tr><td>${i + 1}</td><td>${esc(r.username)}</td><td>${r.total}회</td><td>${r.last_date}</td></tr>`
+  ).join('');
+}
+
+// ── 초기화 ──
+async function init() {
+  await pollStatus();
+  await loadCredentials();
+  await loadCommands();
+  await loadDonation();
+  await loadAttendance();
+  setInterval(pollStatus, 5000);
+  setInterval(loadAttendance, 30000);
+}
+init();
+
+// 모달 외부 클릭으로 닫기
+document.getElementById('modalBg').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+</script>
+</body>
+</html>

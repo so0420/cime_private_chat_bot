@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>룰렛 오버레이</title>
+<style>
+  :root {
+    --color-left-line: #333;
+    --color-main-bg: #FFFFFF;
+    --color-nickname-text: #111;
+    --color-text-light: white;
+    --color-primary: #333;
+    --color-roulette-bg: #f0f0f0;
+    --color-roulette-item: #333;
+    --color-shadow: rgba(0, 0, 0, 0.4);
+    --color-shadow-light: rgba(0, 0, 0, 0.2);
+    --color-overlay: rgba(0, 0, 0, 0.0);
+  }
+
+  @font-face {
+    font-family: 'Paperlogy-8ExtraBold';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+    font-weight: 800;
+    font-style: normal;
+  }
+
+  body {
+    margin: 0;
+    background: transparent;
+    color: var(--color-nickname-text);
+    font-family: 'Paperlogy-8ExtraBold', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  #overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--color-overlay);
+    display: none; justify-content: center; align-items: center;
+  }
+
+  #background-box {
+    background: var(--color-main-bg);
+    padding: 40px;
+    border-radius: 0 30px 30px 0;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 280px;
+    box-sizing: border-box;
+    border-left: 12px solid var(--color-left-line);
+    box-shadow: var(--color-shadow) 5px 5px 20px;
+  }
+
+  #user-name {
+    font-size: 50px; margin-bottom: 20px;
+    font-weight: bold; color: var(--color-nickname-text);
+  }
+
+  #roulette-box {
+    position: relative; width: 600px; height: 120px;
+    overflow: hidden; background: var(--color-roulette-bg);
+  }
+
+  .fade-left, .fade-right {
+    position: absolute; top: 0; width: 60px; height: 100%;
+    z-index: 2; pointer-events: none;
+  }
+  .fade-left {
+    left: 0;
+    background: linear-gradient(to right, var(--color-main-bg), transparent);
+  }
+  .fade-right {
+    right: 0;
+    background: linear-gradient(to left, var(--color-main-bg), transparent);
+  }
+
+  #items-container {
+    position: absolute; top: 0; width: 100%;
+    transition: transform 3s cubic-bezier(0.25, 1, 0.5, 1);
+    z-index: 1;
+  }
+
+  .roulette-item {
+    height: 120px; color: var(--color-roulette-item);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: bold; text-align: center;
+    white-space: normal; padding: 0 50px;
+  }
+
+  #results-accumulated {
+    margin-top: 20px; display: flex; flex-wrap: wrap;
+    justify-content: center; gap: 10px;
+    width: 100%; max-width: 600px;
+  }
+
+  .result-badge {
+    background: var(--color-primary);
+    color: var(--color-text-light);
+    padding: 10px 20px; border-radius: 20px;
+    font-size: 24px; font-weight: bold;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 2px 2px 5px var(--color-shadow-light);
+  }
+
+  @keyframes popIn {
+    from { transform: scale(0); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div id="background-box">
+    <div id="user-name"></div>
+    <div id="roulette-box">
+      <div class="fade-left"></div>
+      <div class="fade-right"></div>
+      <div id="items-container"></div>
+    </div>
+    <div id="results-accumulated"></div>
+  </div>
+</div>
+
+<script>
+const itemHeight = 120;
+let isSpinning = false;
+const queue = [];
+
+let socket;
+const reconnectDelay = 3000;
+
+function getWsUrl() {
+  // file:// 로 열어도 동작하도록 localhost 고정
+  return 'ws://localhost:8000/ws/overlay';
+}
+
+function connectWebSocket() {
+  socket = new WebSocket(getWsUrl());
+
+  socket.addEventListener('open', () => {
+    console.log('[오버레이] WebSocket 연결됨');
+  });
+
+  socket.addEventListener('message', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'run_roulette') {
+        queue.push(data);
+        processQueue();
+      }
+    } catch (e) {
+      console.error('[오버레이] 메시지 파싱 오류:', e);
+    }
+  });
+
+  socket.addEventListener('close', () => {
+    console.warn('[오버레이] 연결 종료, 재연결 대기...');
+    setTimeout(connectWebSocket, reconnectDelay);
+  });
+
+  socket.addEventListener('error', () => {
+    socket.close();
+  });
+}
+
+connectWebSocket();
+
+async function processQueue() {
+  if (isSpinning || queue.length === 0) return;
+  const content = queue.shift();
+  await runRoulette(content);
+}
+
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function runRoulette(content) {
+  isSpinning = true;
+
+  const overlay = document.getElementById('overlay');
+  const userNameBox = document.getElementById('user-name');
+  const container = document.getElementById('items-container');
+  const resultsContainer = document.getElementById('results-accumulated');
+
+  userNameBox.textContent = `${content.user_name}님의 ${content.roulette_name}`;
+  overlay.style.display = 'flex';
+  container.innerHTML = '';
+  resultsContainer.innerHTML = '';
+
+  const items = content.data;
+  const resultIndices = Array.isArray(content.resultdata) ? content.resultdata : [content.resultdata];
+
+  const backgroundBox = document.getElementById('background-box');
+  backgroundBox.style.minHeight = resultIndices.length > 1 ? '350px' : '280px';
+
+  // 첫 번째: 룰렛 애니메이션
+  await spinOne(items, resultIndices[0], true);
+  if (resultIndices.length > 1) {
+    addResultToBottom(items[resultIndices[0]]);
+  }
+
+  // 나머지: 빠른 표시
+  for (let i = 1; i < resultIndices.length; i++) {
+    await wait(800);
+    await spinOne(items, resultIndices[i], false);
+    if (resultIndices.length > 1) {
+      addResultToBottom(items[resultIndices[i]]);
+    }
+  }
+
+  await wait(3000);
+  overlay.style.display = 'none';
+  isSpinning = false;
+  processQueue();
+}
+
+function addResultToBottom(text) {
+  const resultsContainer = document.getElementById('results-accumulated');
+  const existingBadge = Array.from(resultsContainer.children).find(c => c.dataset.item === text);
+
+  if (existingBadge) {
+    let count = parseInt(existingBadge.dataset.count || 1);
+    count++;
+    existingBadge.dataset.count = count;
+    existingBadge.textContent = `${text} x${count}`;
+    existingBadge.style.animation = 'none';
+    existingBadge.offsetHeight;
+    existingBadge.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+  } else {
+    const div = document.createElement('div');
+    div.className = 'result-badge';
+    div.dataset.item = text;
+    div.dataset.count = 1;
+    div.textContent = text;
+    resultsContainer.appendChild(div);
+  }
+}
+
+function spinOne(items, resultIndex, animate) {
+  return new Promise(resolve => {
+    const container = document.getElementById('items-container');
+    const rouletteBox = document.getElementById('roulette-box');
+
+    container.innerHTML = '';
+    container.style.transition = 'none';
+    container.style.transform = 'translateY(0px)';
+    void container.offsetWidth;
+
+    const resultItem = items[resultIndex];
+
+    if (animate) {
+      const extendedItems = [];
+      const totalItems = 20;
+      for (let i = 0; i < totalItems - 1; i++) {
+        extendedItems.push(items[Math.floor(Math.random() * items.length)]);
+      }
+      extendedItems.push(resultItem);
+
+      renderItems(extendedItems, container);
+      void container.offsetWidth;
+
+      const targetIndex = extendedItems.length - 1;
+      const targetOffset = targetIndex * itemHeight - ((rouletteBox.clientHeight - itemHeight) / 2) + 3;
+
+      container.style.transition = 'transform 3s cubic-bezier(0.25, 1, 0.5, 1)';
+      container.style.transform = `translateY(-${targetOffset}px)`;
+
+      setTimeout(resolve, 3000);
+    } else {
+      renderItems([resultItem], container);
+      container.style.transform = 'translateY(0px)';
+      resolve();
+    }
+  });
+}
+
+function renderItems(itemsList, container) {
+  itemsList.forEach(text => {
+    const div = document.createElement('div');
+    div.className = 'roulette-item';
+    div.textContent = text;
+    container.appendChild(div);
+
+    const containerWidth = 600;
+    const fadePadding = 60;
+    const maxWidth = containerWidth - fadePadding * 2;
+    const maxHeight = 120;
+    const lineHeight = 1.2;
+    const maxFontSize = 60;
+    const minFontSize = 16;
+
+    const temp = document.createElement('div');
+    temp.style.position = 'absolute';
+    temp.style.visibility = 'hidden';
+    temp.style.fontFamily = "'Paperlogy-8ExtraBold', sans-serif";
+    temp.style.fontWeight = 'bold';
+    temp.style.lineHeight = lineHeight;
+    temp.style.textAlign = 'center';
+    temp.style.wordBreak = 'break-word';
+    temp.style.width = `${maxWidth}px`;
+    temp.textContent = text;
+    document.body.appendChild(temp);
+
+    let fontSize = maxFontSize;
+    let fitsInOneLine = false;
+
+    temp.style.whiteSpace = 'nowrap';
+    while (fontSize >= minFontSize) {
+      temp.style.fontSize = `${fontSize}px`;
+      if (temp.scrollWidth <= maxWidth * 0.8 && temp.scrollHeight <= maxHeight) {
+        fitsInOneLine = true;
+        break;
+      }
+      fontSize--;
+    }
+
+    if (!fitsInOneLine) {
+      fontSize = maxFontSize;
+      temp.style.whiteSpace = 'normal';
+      while (fontSize >= minFontSize) {
+        temp.style.fontSize = `${fontSize}px`;
+        if (temp.scrollHeight <= maxHeight) break;
+        fontSize--;
+      }
+    }
+
+    div.style.fontSize = `${fontSize}px`;
+    div.style.whiteSpace = 'normal';
+    div.style.lineHeight = lineHeight;
+    div.style.textAlign = 'center';
+
+    document.body.removeChild(temp);
+  });
+}
+</script>
+</body>
+</html>
