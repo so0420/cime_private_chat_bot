@@ -110,6 +110,7 @@
 </style>
 </head>
 <body>
+<audio id="roulette-sound" src="roulette_sound.mp3" preload="auto"></audio>
 <div id="overlay">
   <div id="background-box">
     <div id="user-name"></div>
@@ -249,6 +250,12 @@ function spinOne(items, resultIndex, animate) {
     const resultItem = items[resultIndex];
 
     if (animate) {
+      // 사운드 재생
+      const rouletteSound = document.getElementById('roulette-sound');
+      rouletteSound.currentTime = 19;
+      rouletteSound.volume = 0.5;
+      rouletteSound.play().catch(() => {});
+
       const extendedItems = [];
       const totalItems = 20;
       for (let i = 0; i < totalItems - 1; i++) {
@@ -265,7 +272,10 @@ function spinOne(items, resultIndex, animate) {
       container.style.transition = 'transform 3s cubic-bezier(0.25, 1, 0.5, 1)';
       container.style.transform = `translateY(-${targetOffset}px)`;
 
-      setTimeout(resolve, 3000);
+      setTimeout(() => {
+        rouletteSound.pause();
+        resolve();
+      }, 3000);
     } else {
       renderItems([resultItem], container);
       container.style.transform = 'translateY(0px)';

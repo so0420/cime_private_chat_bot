@@ -465,8 +465,29 @@ async def handle_message(
 async def handle_donation(
     session, ws, sid, slug, sender, ucid, attrs, content
 ):
-    amount = attrs.get("amount") or attrs.get("payAmount") or "0"
-    dn_sender = sender or attrs.get("nickname") or attrs.get("name") or "익명"
+    # extra JSON 파싱 (DONATION_CHAT 형식)
+    extra = {}
+    try:
+        extra = json.loads(attrs.get("extra", "{}"))
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    amount = (
+        extra.get("amt")
+        or attrs.get("amount")
+        or attrs.get("payAmount")
+        or "0"
+    )
+    dn_sender = (
+        sender
+        or (extra.get("prof", {}).get("ch", {}).get("na"))
+        or attrs.get("nickname")
+        or attrs.get("name")
+        or "익명"
+    )
+    # extra.msg로 content 보완
+    if not content and extra.get("msg"):
+        content = extra["msg"]
 
     # ── 후원 감사 메세지 ──
     enabled = await get_setting("donation_enabled")
@@ -1133,11 +1154,12 @@ def _extract_overlay():
         return
     import shutil
     os.makedirs(OVERLAY_DIR, exist_ok=True)
-    src = os.path.join(WEB_DIR, "roulette_overlay.html")
-    dst = os.path.join(OVERLAY_DIR, "roulette_overlay.html")
-    if os.path.exists(src):
-        shutil.copy2(src, dst)
-        log(f"[오버레이] {dst} 복사 완료")
+    for fname in ("roulette_overlay.html", "roulette_sound.mp3"):
+        src = os.path.join(WEB_DIR, fname)
+        dst = os.path.join(OVERLAY_DIR, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+    log(f"[오버레이] {OVERLAY_DIR} 복사 완료")
 
 
 async def on_startup(app):

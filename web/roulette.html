@@ -615,6 +615,8 @@ async function init() {
   await loadRoulettes();
   await loadRetention();
   await loadLogs();
+  // 기록 실시간 업데이트 (5초마다)
+  setInterval(loadLogs, 5000);
 }
 init();
 </script>
