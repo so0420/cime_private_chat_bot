@@ -148,6 +148,32 @@
   .sortable-ghost { opacity: 0.4; }
   .sortable-drag { opacity: 0.8; }
 
+  /* 기록 테이블 */
+  .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .log-table th {
+    padding: 8px 10px; text-align: left; font-size: 12px; font-weight: 600;
+    color: #888; border-bottom: 2px solid #eee; white-space: nowrap;
+  }
+  .log-table td {
+    padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle;
+  }
+  .log-table tr:hover { background: #fafafa; }
+  .log-empty { padding: 40px 0; text-align: center; color: #999; font-size: 14px; }
+  .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 12px; align-items: center; }
+  .pagination button {
+    padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff;
+    font-size: 13px; cursor: pointer;
+  }
+  .pagination button:hover { border-color: #999; }
+  .pagination button:disabled { opacity: .4; cursor: not-allowed; }
+  .pagination button.active { background: #333; color: #fff; border-color: #333; }
+  .pagination span { font-size: 13px; color: #666; padding: 0 8px; }
+  .log-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .retention-input {
+    width: 60px !important; padding: 6px 10px !important; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; text-align: center; flex: none;
+  }
+
   @media (max-width: 700px) {
     .roulette-editor { flex-direction: column; }
     .editor-right { width: 100%; }
@@ -184,6 +210,21 @@
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="btn btn-dark" onclick="saveAll()">저장하기</button>
     </div>
+  </div>
+  <!-- 룰렛 기록 -->
+  <div class="card">
+    <h2>룰렛 기록</h2>
+    <div class="log-toolbar">
+      <button class="btn btn-outline btn-sm" onclick="exportCsv()">CSV 추출</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLogs()">모든 기록 지우기</button>
+      <span style="flex:1;"></span>
+      <span style="font-size:13px;color:#666;">보관 기간:</span>
+      <input type="number" class="retention-input" id="retentionMonths" min="1" max="120" value="6">
+      <span style="font-size:13px;color:#666;">개월</span>
+      <button class="btn btn-outline btn-sm" onclick="saveRetention()">적용</button>
+    </div>
+    <div id="logContent"></div>
+    <div class="pagination" id="logPagination"></div>
   </div>
 </div>
 
@@ -488,6 +529,80 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── 룰렛 기록 ──
+let logPage = 1;
+const logPerPage = 20;
+
+async function loadLogs() {
+  try {
+    const res = await api(`/api/roulette-logs?page=${logPage}&per_page=${logPerPage}`);
+    renderLogs(res);
+  } catch (e) {
+    document.getElementById('logContent').innerHTML = '<div class="log-empty">기록을 불러올 수 없습니다.</div>';
+  }
+}
+
+function renderLogs(res) {
+  const container = document.getElementById('logContent');
+  const pagination = document.getElementById('logPagination');
+  if (!res.data || res.data.length === 0) {
+    container.innerHTML = '<div class="log-empty">기록이 없습니다.</div>';
+    pagination.innerHTML = '';
+    return;
+  }
+  let html = `<table class="log-table"><thead><tr>
+    <th>일시</th><th>룰렛</th><th>사용자</th><th>결과</th><th>횟수</th>
+  </tr></thead><tbody>`;
+  for (const r of res.data) {
+    let results;
+    try { results = JSON.parse(r.result); } catch { results = [r.result]; }
+    html += `<tr>
+      <td>${esc(r.created_at || '')}</td>
+      <td>${esc(r.roulette_name)}</td>
+      <td>${esc(r.user_name)}</td>
+      <td>${Array.isArray(results) ? results.map(x => esc(x)).join(', ') : esc(r.result)}</td>
+      <td>${r.spin_count}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  const totalPages = Math.ceil(res.total / res.per_page);
+  let pg = '';
+  pg += `<button ${logPage <= 1 ? 'disabled' : ''} onclick="logPage--;loadLogs();">&lt;</button>`;
+  pg += `<span>${logPage} / ${totalPages} (총 ${res.total}건)</span>`;
+  pg += `<button ${logPage >= totalPages ? 'disabled' : ''} onclick="logPage++;loadLogs();">&gt;</button>`;
+  pagination.innerHTML = pg;
+}
+
+async function exportCsv() {
+  window.open('/api/roulette-logs/csv', '_blank');
+}
+
+async function clearLogs() {
+  if (!confirm('모든 룰렛 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  await api('/api/roulette-logs', { method: 'DELETE' });
+  logPage = 1;
+  await loadLogs();
+  toast('기록이 삭제되었습니다.');
+}
+
+async function loadRetention() {
+  try {
+    const res = await api('/api/roulette-logs/retention');
+    document.getElementById('retentionMonths').value = res.months || 6;
+  } catch (e) {}
+}
+
+async function saveRetention() {
+  const months = parseInt(document.getElementById('retentionMonths').value) || 6;
+  await api('/api/roulette-logs/retention', {
+    method: 'PUT',
+    body: JSON.stringify({ months }),
+  });
+  toast(`보관 기간: ${months}개월로 설정됨`);
+}
+
 // ── 초기화 ──
 async function init() {
   // 오버레이 파일 경로 로드
@@ -498,6 +613,8 @@ async function init() {
     document.getElementById('overlayUrl').textContent = '';
   }
   await loadRoulettes();
+  await loadRetention();
+  await loadLogs();
 }
 init();
 </script>

@@ -97,6 +97,14 @@ async def init_db():
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS roulette_logs (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                roulette_name   TEXT NOT NULL,
+                user_name       TEXT NOT NULL,
+                result          TEXT NOT NULL,
+                spin_count      INTEGER DEFAULT 1,
+                created_at      TEXT DEFAULT (datetime('now', '+9 hours'))
+            );
             CREATE TABLE IF NOT EXISTS roulettes (
                 id                          INTEGER PRIMARY KEY AUTOINCREMENT,
                 roulette_name               TEXT    NOT NULL,
@@ -222,12 +230,13 @@ async def broadcast_overlay(data: dict):
 
 
 async def trigger_roulette(sender: str, roulette_row: dict, spin_count: int = 1):
-    """룰렛 실행 및 오버레이 전송"""
+    """룰렛 실행, 오버레이 전송 및 기록 저장"""
     items = json.loads(roulette_row["data"] or "[]")
     if not items:
         return None
     results = [pick_roulette_result(items) for _ in range(spin_count)]
     item_names = [it["data"] for it in items]
+    result_names = [item_names[i] for i in results]
     await broadcast_overlay({
         "type": "run_roulette",
         "user_name": sender,
@@ -235,7 +244,14 @@ async def trigger_roulette(sender: str, roulette_row: dict, spin_count: int = 1)
         "data": item_names,
         "resultdata": results,
     })
-    return [item_names[i] for i in results]
+    # 기록 저장
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO roulette_logs(roulette_name, user_name, result, spin_count) VALUES(?,?,?,?)",
+            (roulette_row["roulette_name"], sender, json.dumps(result_names, ensure_ascii=False), spin_count),
+        )
+        await db.commit()
+    return result_names
 
 
 # ========================== API 헬퍼 ============================
@@ -936,17 +952,97 @@ async def api_roulettes_test(request):
     items = d.get("data", [])
     if not items:
         return web.json_response({"error": "항목이 없습니다."}, status=400)
+    roulette_name = d.get("roulette_name", "테스트 룰렛")
     idx = pick_roulette_result(items)
     result_item = items[idx]["data"]
     # 오버레이에 테스트 전송
     await broadcast_overlay({
         "type": "run_roulette",
         "user_name": "테스트",
-        "roulette_name": d.get("roulette_name", "테스트 룰렛"),
+        "roulette_name": roulette_name,
         "data": [item["data"] for item in items],
         "resultdata": [idx],
     })
+    # 기록 저장
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO roulette_logs(roulette_name, user_name, result, spin_count) VALUES(?,?,?,?)",
+            (roulette_name, "테스트", json.dumps([result_item], ensure_ascii=False), 1),
+        )
+        await db.commit()
     return web.json_response({"ok": True, "result": result_item})
+
+
+# ── 룰렛 기록 ──
+@routes.get("/api/roulette-logs")
+async def api_roulette_logs(request):
+    page = int(request.query.get("page", 1))
+    per_page = int(request.query.get("per_page", 50))
+    offset = (page - 1) * per_page
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT COUNT(*) as cnt FROM roulette_logs")
+        total = (await cur.fetchone())["cnt"]
+        cur = await db.execute(
+            "SELECT * FROM roulette_logs ORDER BY id DESC LIMIT ? OFFSET ?",
+            (per_page, offset),
+        )
+        rows = [dict(r) for r in await cur.fetchall()]
+    return web.json_response({"total": total, "page": page, "per_page": per_page, "data": rows})
+
+
+@routes.delete("/api/roulette-logs")
+async def api_roulette_logs_clear(request):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM roulette_logs")
+        await db.commit()
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/roulette-logs/csv")
+async def api_roulette_logs_csv(request):
+    import io, csv
+    output = io.StringIO()
+    output.write('\ufeff')  # BOM for Excel
+    writer = csv.writer(output)
+    writer.writerow(["번호", "룰렛", "사용자", "결과", "횟수", "일시"])
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT * FROM roulette_logs ORDER BY id DESC")
+        for r in await cur.fetchall():
+            writer.writerow([r["id"], r["roulette_name"], r["user_name"], r["result"], r["spin_count"], r["created_at"]])
+    return web.Response(
+        body=output.getvalue(),
+        content_type="text/csv",
+        charset="utf-8",
+        headers={"Content-Disposition": "attachment; filename=roulette_logs.csv"},
+    )
+
+
+@routes.get("/api/roulette-logs/retention")
+async def api_roulette_logs_retention(request):
+    val = await get_setting("roulette_log_retention_months")
+    return web.json_response({"months": int(val) if val else 6})
+
+
+@routes.put("/api/roulette-logs/retention")
+async def api_roulette_logs_retention_set(request):
+    d = await request.json()
+    months = max(1, int(d.get("months", 6)))
+    await save_setting("roulette_log_retention_months", str(months))
+    return web.json_response({"ok": True, "months": months})
+
+
+async def cleanup_old_roulette_logs():
+    """보관 기간이 지난 룰렛 기록 삭제"""
+    val = await get_setting("roulette_log_retention_months")
+    months = int(val) if val else 6
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM roulette_logs WHERE created_at < datetime('now', '+9 hours', ?)",
+            (f"-{months} months",),
+        )
+        await db.commit()
 
 
 # ── 오버레이 WebSocket ──
@@ -1047,6 +1143,7 @@ def _extract_overlay():
 async def on_startup(app):
     _extract_overlay()
     await init_db()
+    await cleanup_old_roulette_logs()
     state["mauth_cookie"] = await get_setting("mauth_cookie") or ""
     state["cookie_time"] = await get_setting("cookie_time") or ""
     state["streamer_slug"] = await get_setting("streamer_slug") or ""
