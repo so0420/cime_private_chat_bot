@@ -76,4 +76,4 @@ pyinstaller --noconfirm --onefile --icon "favicon.ico" --add-data "web;web" --co
 
 ## 라이선스
 
-개인/비공개 사용 목적으로 제작되었습니다.
+[MIT License](LICENSE)
