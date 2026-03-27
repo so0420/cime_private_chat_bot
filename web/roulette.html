@@ -288,7 +288,6 @@ function renderEditor() {
   const probSum = items.reduce((s, it) => s + (parseFloat(it.weight) || 0), 0);
   const probSumRound = Math.round(probSum * 100000) / 100000;
 
-  const donEnabled = r.trigger_donation_min_amount != null;
   const donMin = r.trigger_donation_min_amount || 1000;
   const donMax = r.trigger_donation_max_amount;
   const maxCount = (donMax != null && donMin > 0) ? Math.floor(donMax / donMin) : '';
@@ -328,30 +327,19 @@ function renderEditor() {
       </div>
       <div class="editor-right">
         <div class="trigger-section">
-          <h4>트리거 설정</h4>
-
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <label class="toggle" style="margin:0;">
-              <input type="checkbox" ${donEnabled ? 'checked' : ''} onchange="toggleDonation(this.checked)">
-              <span class="slider"></span>
-            </label>
-            <span style="font-size:13px;font-weight:500;">후원 트리거</span>
+          <h4>후원 트리거</h4>
+          <div class="form-row">
+            <label>최소 금액</label>
+            <input type="number" value="${donMin}" oninput="updateDonation()">
           </div>
-          <div class="trigger-fields ${donEnabled ? 'show' : ''}" id="donFields">
-            <div class="form-row">
-              <label>최소 금액</label>
-              <input type="number" value="${donMin}" oninput="updateDonation()">
-            </div>
-            <div class="form-row">
-              <label>최대 연차 횟수</label>
-              <input type="number" id="donMaxCount" value="${maxCount}" placeholder="무제한" oninput="updateDonation()">
-            </div>
-            <div class="form-row">
-              <label>포함 텍스트 (선택)</label>
-              <input type="text" value="${esc(r.trigger_donation_text || '')}" oninput="roulettes[selectedIdx].trigger_donation_text=this.value">
-            </div>
+          <div class="form-row">
+            <label>최대 연차 횟수</label>
+            <input type="number" id="donMaxCount" value="${maxCount}" placeholder="무제한" oninput="updateDonation()">
           </div>
-
+          <div class="form-row">
+            <label>포함 텍스트 (선택)</label>
+            <input type="text" value="${esc(r.trigger_donation_text || '')}" oninput="roulettes[selectedIdx].trigger_donation_text=this.value">
+          </div>
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
@@ -425,19 +413,6 @@ function removeItem(i) {
 }
 
 // ── 트리거 ──
-function toggleDonation(checked) {
-  const fields = document.getElementById('donFields');
-  if (checked) {
-    fields.classList.add('show');
-    roulettes[selectedIdx].trigger_donation_min_amount = 1000;
-  } else {
-    fields.classList.remove('show');
-    roulettes[selectedIdx].trigger_donation_min_amount = null;
-    roulettes[selectedIdx].trigger_donation_max_amount = null;
-    roulettes[selectedIdx].trigger_donation_text = null;
-  }
-}
-
 function updateDonation() {
   const inputs = document.querySelectorAll('#donFields input[type="number"]');
   const price = parseFloat(inputs[0].value) || 0;
@@ -455,7 +430,7 @@ function addRoulette() {
   roulettes.push({
     roulette_name: `룰렛 ${roulettes.length + 1}`,
     data: '[]',
-    trigger_donation_min_amount: null,
+    trigger_donation_min_amount: 1000,
     trigger_donation_max_amount: null,
     trigger_donation_text: null,
     activate: 1,
