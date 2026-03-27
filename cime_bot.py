@@ -894,6 +894,18 @@ async def api_bot_start(request):
     if state.get("running"):
         return web.json_response({"error": "봇이 이미 실행 중입니다."}, status=400)
 
+    # 로그인 유효성 확인
+    ct = state.get("cookie_time", "")
+    cookie_valid = False
+    if ct and state.get("mauth_cookie"):
+        try:
+            diff = (datetime.now(KST) - datetime.fromisoformat(ct)).total_seconds()
+            cookie_valid = diff < COOKIE_LIFETIME_HOURS * 3600
+        except Exception:
+            pass
+    if not cookie_valid:
+        return web.json_response({"error": "로그인이 필요합니다. 먼저 로그인해 주세요."}, status=400)
+
     state["running"] = True
     state["streamer_slug"] = slug
 
