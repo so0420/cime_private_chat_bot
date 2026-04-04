@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<title>룰렛 설정 - 씨미 챗봇</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f5f5; color: #333; line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  /* 네비게이션 */
+  .nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .nav a {
+    padding: 6px 16px; border-radius: 8px; font-size: 14px; font-weight: 500;
+    text-decoration: none; color: #555; background: #fff; border: 1px solid #ddd;
+    transition: all .2s;
+  }
+  .nav a:hover { border-color: #999; }
+  .nav a.active { background: #333; color: #fff; border-color: #333; }
+
+  /* 헤더 */
+  .header {
+    text-align: center; padding: 24px 0 20px;
+    border-bottom: 1px solid #ddd; margin-bottom: 24px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { color: #888; font-size: 14px; margin-top: 6px; }
+
+  /* 카드 */
+  .card {
+    background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+    padding: 24px; margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 18px; font-weight: 600; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid #eee;
+  }
+
+  /* 버튼 */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 22px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 500; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-dark { background: #333; color: #fff; }
+  .btn-outline { background: #fff; color: #333; border: 1px solid #ccc; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fca5a5; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* 탭 */
+  .tab-bar {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+    align-items: center;
+  }
+  .tab-btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    border: 1px solid #ddd; background: #fff; color: #555; cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn:hover { border-color: #999; }
+  .tab-btn.active { background: #333; color: #fff; border-color: #333; }
+
+  /* 룰렛 편집 영역 */
+  .roulette-editor { display: flex; gap: 20px; }
+  .editor-left { flex: 1; min-width: 0; }
+  .editor-right { width: 280px; flex-shrink: 0; }
+
+  /* 폼 */
+  label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 4px; }
+  input[type="text"], input[type="number"], select {
+    width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 14px; background: #fafafa; outline: none; transition: border .2s;
+  }
+  input:focus, select:focus { border-color: #333; background: #fff; }
+  .form-row { margin-bottom: 12px; }
+
+  /* 아이템 테이블 */
+  .item-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .item-table th {
+    padding: 8px 10px; text-align: left; font-size: 12px; font-weight: 600;
+    color: #888; border-bottom: 2px solid #eee;
+  }
+  .item-table td {
+    padding: 6px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle;
+  }
+  .item-table input { padding: 8px 10px; }
+  .item-table .col-drag { width: 30px; text-align: center; }
+  .item-table .col-weight { width: 100px; }
+  .item-table .col-del { width: 50px; text-align: center; }
+  .drag-handle { cursor: grab; color: #ccc; font-size: 16px; user-select: none; }
+  .drag-handle:hover { color: #333; }
+  .drag-handle:active { cursor: grabbing; }
+
+  /* 토글 스위치 */
+  .toggle { position: relative; display: inline-block; width: 42px; height: 24px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle .slider {
+    position: absolute; inset: 0; background: #ccc; border-radius: 24px;
+    transition: .25s; cursor: pointer;
+  }
+  .toggle .slider::before {
+    content: ''; position: absolute; width: 18px; height: 18px;
+    left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
+    transition: .25s;
+  }
+  .toggle input:checked + .slider { background: #333; }
+  .toggle input:checked + .slider::before { transform: translateX(18px); }
+
+  /* 트리거 설정 */
+  .trigger-section {
+    background: #f9f9f9; border: 1px solid #eee; border-radius: 8px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .trigger-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .trigger-fields { max-height: 0; overflow: hidden; transition: max-height .4s ease; }
+  .trigger-fields.show { max-height: 300px; }
+
+  /* 확률 합계 */
+  .prob-sum { font-size: 12px; color: #888; margin-top: 4px; }
+  .prob-sum.warn { color: #dc2626; }
+
+  /* 오버레이 URL */
+  .overlay-url {
+    padding: 10px 14px; background: #fafafa; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 13px; font-family: 'Consolas', monospace;
+    word-break: break-all; user-select: all; cursor: text;
+  }
+
+  /* 알림 */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 10px 24px; border-radius: 8px; font-size: 14px;
+    background: #333; color: #fff; z-index: 999;
+    opacity: 0; transition: opacity .3s;
+  }
+  .toast.show { opacity: 1; }
+
+  .note { font-size: 12px; color: #999; margin-top: 4px; }
+
+  /* Sortable 드래그 */
+  .sortable-ghost { opacity: 0.4; }
+  .sortable-drag { opacity: 0.8; }
+
+  /* 기록 테이블 */
+  .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .log-table th {
+    padding: 8px 10px; text-align: left; font-size: 12px; font-weight: 600;
+    color: #888; border-bottom: 2px solid #eee; white-space: nowrap;
+  }
+  .log-table td {
+    padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle;
+  }
+  .log-table tr:hover { background: #fafafa; }
+  .log-empty { padding: 40px 0; text-align: center; color: #999; font-size: 14px; }
+  .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 12px; align-items: center; }
+  .pagination button {
+    padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff;
+    font-size: 13px; cursor: pointer;
+  }
+  .pagination button:hover { border-color: #999; }
+  .pagination button:disabled { opacity: .4; cursor: not-allowed; }
+  .pagination button.active { background: #333; color: #fff; border-color: #333; }
+  .pagination span { font-size: 13px; color: #666; padding: 0 8px; }
+  .log-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .retention-input {
+    width: 60px !important; padding: 6px 10px !important; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; text-align: center; flex: none;
+  }
+
+  @media (max-width: 700px) {
+    .roulette-editor { flex-direction: column; }
+    .editor-right { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a href="/">봇 관리</a>
+    <a href="/roulette" class="active">룰렛 설정</a>
+  </div>
+
+  <div class="header">
+    <h1>룰렛 설정</h1>
+    <p>룰렛 항목 관리 · 트리거 설정 · 오버레이</p>
+  </div>
+
+  <!-- 오버레이 URL -->
+  <div class="card">
+    <h2>오버레이 URL</h2>
+    <p class="note" style="margin-bottom:8px;">OBS 브라우저 소스에 아래 URL을 추가하세요.</p>
+    <div class="overlay-url" id="overlayUrl"></div>
+    <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="copyOverlayUrl()">URL 복사</button>
+  </div>
+
+  <!-- 룰렛 탭 -->
+  <div class="card">
+    <h2>룰렛 관리</h2>
+    <div class="tab-bar" id="tabBar">
+      <button class="btn btn-dark btn-sm" onclick="addRoulette()">+ 새 룰렛</button>
+    </div>
+    <div id="tabContent"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-dark" onclick="saveAll()">저장하기</button>
+    </div>
+  </div>
+  <!-- 룰렛 기록 -->
+  <div class="card">
+    <h2>룰렛 기록</h2>
+    <div class="log-toolbar">
+      <button class="btn btn-outline btn-sm" onclick="exportCsv()">CSV 추출</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLogs()">모든 기록 지우기</button>
+      <span style="flex:1;"></span>
+      <span style="font-size:13px;color:#666;">보관 기간:</span>
+      <input type="number" class="retention-input" id="retentionMonths" min="1" max="120" value="6">
+      <span style="font-size:13px;color:#666;">개월</span>
+      <button class="btn btn-outline btn-sm" onclick="saveRetention()">적용</button>
+    </div>
+    <div id="logContent"></div>
+    <div class="pagination" id="logPagination"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script>
+let roulettes = [];
+let selectedIdx = 0;
+
+function toast(msg, ms = 2000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), ms);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  return res.json();
+}
+
+// ── 데이터 로드 ──
+async function loadRoulettes() {
+  const list = await api('/api/roulettes');
+  roulettes = Array.isArray(list) ? list.map(r => ({
+    ...r,
+    data: typeof r.data === 'string' ? r.data : JSON.stringify(r.data || []),
+  })) : [];
+  if (selectedIdx >= roulettes.length) selectedIdx = Math.max(0, roulettes.length - 1);
+  renderAll();
+}
+
+// ── 렌더링 ──
+function renderAll() {
+  renderTabs();
+  renderEditor();
+  initSortable();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tabBar');
+  bar.innerHTML = '<button class="btn btn-dark btn-sm" onclick="addRoulette()">+ 새 룰렛</button>';
+  roulettes.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (i === selectedIdx ? ' active' : '');
+    btn.textContent = r.roulette_name || `룰렛 ${i + 1}`;
+    btn.dataset.index = i;
+    btn.onclick = () => { selectedIdx = i; renderAll(); };
+    bar.appendChild(btn);
+  });
+}
+
+function renderEditor() {
+  const container = document.getElementById('tabContent');
+  if (roulettes.length === 0) {
+    container.innerHTML = '<p style="color:#999;padding:20px 0;">룰렛을 추가해 주세요.</p>';
+    return;
+  }
+  const r = roulettes[selectedIdx];
+  const items = JSON.parse(r.data || '[]');
+  const probSum = items.reduce((s, it) => s + (parseFloat(it.weight) || 0), 0);
+  const probSumRound = Math.round(probSum * 100000) / 100000;
+
+  const donMin = r.trigger_donation_min_amount || 1000;
+  const donMax = r.trigger_donation_max_amount;
+  const maxCount = (donMax != null && donMin > 0) ? Math.floor(donMax / donMin) : '';
+
+  container.innerHTML = `
+    <div class="roulette-editor">
+      <div class="editor-left">
+        <div class="form-row">
+          <label>룰렛 이름</label>
+          <input type="text" value="${esc(r.roulette_name || '')}" oninput="updateName(this.value)">
+        </div>
+        <label>항목 목록</label>
+        <table class="item-table">
+          <thead>
+            <tr>
+              <th class="col-drag"></th>
+              <th>항목명</th>
+              <th class="col-weight">확률(%)</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="itemBody">
+            ${items.map((it, i) => `
+              <tr>
+                <td class="col-drag"><span class="drag-handle">☰</span></td>
+                <td><input type="text" value="${esc(it.data || '')}" maxlength="22" oninput="updateItem(${i},'data',this.value)"></td>
+                <td class="col-weight"><input type="number" value="${it.weight}" min="0" max="100" step="any" oninput="updateItem(${i},'weight',this.value)"></td>
+                <td class="col-del"><button class="btn btn-danger btn-sm" onclick="removeItem(${i})">×</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="prob-sum ${probSumRound !== 100 && probSumRound !== 0 ? 'warn' : ''}">
+          확률 합계: ${probSumRound}%${probSumRound !== 100 && probSumRound !== 0 ? ' (100%여야 합니다)' : ''}
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="addItem()" style="margin-top:8px;">+ 항목 추가</button>
+      </div>
+      <div class="editor-right">
+        <div class="trigger-section">
+          <h4>후원 트리거</h4>
+          <div class="form-row">
+            <label>최소 금액</label>
+            <input type="number" value="${donMin}" oninput="updateDonation()">
+          </div>
+          <div class="form-row">
+            <label>최대 연차 횟수</label>
+            <input type="number" id="donMaxCount" value="${maxCount}" placeholder="무제한" oninput="updateDonation()">
+          </div>
+          <div class="form-row">
+            <label>포함 텍스트 (선택)</label>
+            <input type="text" value="${esc(r.trigger_donation_text || '')}" oninput="roulettes[selectedIdx].trigger_donation_text=this.value">
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <label class="toggle" style="margin:0;">
+            <input type="checkbox" ${r.activate ? 'checked' : ''} onchange="roulettes[selectedIdx].activate=this.checked?1:0">
+            <span class="slider"></span>
+          </label>
+          <span style="font-size:13px;font-weight:600;">활성화</span>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="testRoulette()">테스트 돌리기</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRoulette()">룰렛 삭제</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initSortable() {
+  const tbody = document.getElementById('itemBody');
+  if (!tbody) return;
+  Sortable.create(tbody, {
+    animation: 150,
+    handle: '.drag-handle',
+    onEnd(evt) {
+      if (evt.oldIndex === evt.newIndex) return;
+      const items = JSON.parse(roulettes[selectedIdx].data || '[]');
+      const moved = items.splice(evt.oldIndex, 1)[0];
+      items.splice(evt.newIndex, 0, moved);
+      roulettes[selectedIdx].data = JSON.stringify(items);
+      renderEditor();
+      initSortable();
+    }
+  });
+}
+
+// ── 항목 조작 ──
+function updateName(val) {
+  roulettes[selectedIdx].roulette_name = val;
+  // 탭 버튼 텍스트만 업데이트
+  const btns = document.querySelectorAll('#tabBar .tab-btn');
+  btns.forEach(b => { if (parseInt(b.dataset.index) === selectedIdx) b.textContent = val; });
+}
+
+function updateItem(i, field, val) {
+  const items = JSON.parse(roulettes[selectedIdx].data || '[]');
+  items[i][field] = field === 'weight' ? parseFloat(val) || 0 : val;
+  roulettes[selectedIdx].data = JSON.stringify(items);
+  // 확률 합계 업데이트
+  const probSum = Math.round(items.reduce((s, it) => s + (parseFloat(it.weight) || 0), 0) * 100000) / 100000;
+  const el = document.querySelector('.prob-sum');
+  if (el) {
+    el.textContent = `확률 합계: ${probSum}%${probSum !== 100 && probSum !== 0 ? ' (100%여야 합니다)' : ''}`;
+    el.className = 'prob-sum' + (probSum !== 100 && probSum !== 0 ? ' warn' : '');
+  }
+}
+
+function addItem() {
+  const items = JSON.parse(roulettes[selectedIdx].data || '[]');
+  items.push({ data: '', weight: 0 });
+  roulettes[selectedIdx].data = JSON.stringify(items);
+  renderEditor(); initSortable();
+}
+
+function removeItem(i) {
+  const items = JSON.parse(roulettes[selectedIdx].data || '[]');
+  items.splice(i, 1);
+  roulettes[selectedIdx].data = JSON.stringify(items);
+  renderEditor(); initSortable();
+}
+
+// ── 트리거 ──
+function updateDonation() {
+  const inputs = document.querySelectorAll('#donFields input[type="number"]');
+  const price = parseFloat(inputs[0].value) || 0;
+  const countVal = document.getElementById('donMaxCount').value;
+  roulettes[selectedIdx].trigger_donation_min_amount = price;
+  if (countVal === '') {
+    roulettes[selectedIdx].trigger_donation_max_amount = null;
+  } else {
+    roulettes[selectedIdx].trigger_donation_max_amount = price * (parseFloat(countVal) || 0);
+  }
+}
+
+// ── 룰렛 추가/삭제 ──
+function addRoulette() {
+  roulettes.push({
+    roulette_name: `룰렛 ${roulettes.length + 1}`,
+    data: '[]',
+    trigger_donation_min_amount: 1000,
+    trigger_donation_max_amount: null,
+    trigger_donation_text: null,
+    activate: 1,
+  });
+  selectedIdx = roulettes.length - 1;
+  renderAll();
+}
+
+function deleteRoulette() {
+  if (!confirm('이 룰렛을 삭제하시겠습니까?')) return;
+  roulettes.splice(selectedIdx, 1);
+  selectedIdx = Math.max(0, selectedIdx - 1);
+  renderAll();
+}
+
+// ── 테스트 ──
+async function testRoulette() {
+  const r = roulettes[selectedIdx];
+  const items = JSON.parse(r.data || '[]');
+  if (!items.length) return toast('항목을 추가해 주세요.');
+  const probSum = Math.round(items.reduce((s, it) => s + (parseFloat(it.weight) || 0), 0) * 100000) / 100000;
+  if (probSum !== 100 && probSum !== 0) {
+    if (!confirm(`확률 합계가 ${probSum}%입니다. 그래도 테스트하시겠습니까?`)) return;
+  }
+  try {
+    const res = await api('/api/roulettes/test', {
+      method: 'POST',
+      body: JSON.stringify({ roulette_name: r.roulette_name, data: items }),
+    });
+    if (res.result) toast(`테스트 결과: ${res.result}`);
+    else toast(res.error || '오류');
+  } catch (e) { toast('테스트 오류'); }
+}
+
+// ── 저장 ──
+async function saveAll() {
+  // 유효성 검사
+  const errors = [];
+  const names = new Set();
+  roulettes.forEach((r, i) => {
+    const items = JSON.parse(r.data || '[]');
+    const sum = Math.round(items.reduce((s, it) => s + (parseFloat(it.weight) || 0), 0) * 100000) / 100000;
+    if (sum !== 100 && sum !== 0 && r.activate) {
+      errors.push(`[${r.roulette_name}] 확률 합이 ${sum}% (100%여야 함)`);
+    }
+    if (names.has(r.roulette_name)) {
+      errors.push(`[${r.roulette_name}] 이름 중복`);
+    }
+    names.add(r.roulette_name);
+  });
+  if (errors.length) { alert(errors.join('\n')); return; }
+
+  const dataToSend = roulettes.map((r, i) => ({ ...r, sort_order: i }));
+  try {
+    const res = await api('/api/roulettes/save-all', {
+      method: 'POST',
+      body: JSON.stringify(dataToSend),
+    });
+    if (res.ok) toast('저장 완료!');
+    else toast('저장 실패');
+  } catch (e) { toast('저장 중 오류'); }
+}
+
+// ── 오버레이 URL ──
+function copyOverlayUrl() {
+  const url = document.getElementById('overlayUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => toast('복사됨'));
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── 룰렛 기록 ──
+let logPage = 1;
+const logPerPage = 20;
+
+async function loadLogs() {
+  try {
+    const res = await api(`/api/roulette-logs?page=${logPage}&per_page=${logPerPage}`);
+    renderLogs(res);
+  } catch (e) {
+    document.getElementById('logContent').innerHTML = '<div class="log-empty">기록을 불러올 수 없습니다.</div>';
+  }
+}
+
+function renderLogs(res) {
+  const container = document.getElementById('logContent');
+  const pagination = document.getElementById('logPagination');
+  if (!res.data || res.data.length === 0) {
+    container.innerHTML = '<div class="log-empty">기록이 없습니다.</div>';
+    pagination.innerHTML = '';
+    return;
+  }
+  let html = `<table class="log-table"><thead><tr>
+    <th>일시</th><th>룰렛</th><th>사용자</th><th>결과</th><th>횟수</th>
+  </tr></thead><tbody>`;
+  for (const r of res.data) {
+    let results;
+    try { results = JSON.parse(r.result); } catch { results = [r.result]; }
+    html += `<tr>
+      <td>${esc(r.created_at || '')}</td>
+      <td>${esc(r.roulette_name)}</td>
+      <td>${esc(r.user_name)}</td>
+      <td>${Array.isArray(results) ? results.map(x => esc(x)).join(', ') : esc(r.result)}</td>
+      <td>${r.spin_count}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  const totalPages = Math.ceil(res.total / res.per_page);
+  let pg = '';
+  pg += `<button ${logPage <= 1 ? 'disabled' : ''} onclick="logPage--;loadLogs();">&lt;</button>`;
+  pg += `<span>${logPage} / ${totalPages} (총 ${res.total}건)</span>`;
+  pg += `<button ${logPage >= totalPages ? 'disabled' : ''} onclick="logPage++;loadLogs();">&gt;</button>`;
+  pagination.innerHTML = pg;
+}
+
+async function exportCsv() {
+  window.open('/api/roulette-logs/csv', '_blank');
+}
+
+async function clearLogs() {
+  if (!confirm('모든 룰렛 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  await api('/api/roulette-logs', { method: 'DELETE' });
+  logPage = 1;
+  await loadLogs();
+  toast('기록이 삭제되었습니다.');
+}
+
+async function loadRetention() {
+  try {
+    const res = await api('/api/roulette-logs/retention');
+    document.getElementById('retentionMonths').value = res.months || 6;
+  } catch (e) {}
+}
+
+async function saveRetention() {
+  const months = parseInt(document.getElementById('retentionMonths').value) || 6;
+  await api('/api/roulette-logs/retention', {
+    method: 'PUT',
+    body: JSON.stringify({ months }),
+  });
+  toast(`보관 기간: ${months}개월로 설정됨`);
+}
+
+// ── 초기화 ──
+async function init() {
+  // 오버레이 파일 경로 로드
+  try {
+    const overlay = await api('/api/overlay-path');
+    document.getElementById('overlayUrl').textContent = overlay.path || '';
+  } catch (e) {
+    document.getElementById('overlayUrl').textContent = '';
+  }
+  await loadRoulettes();
+  await loadRetention();
+  await loadLogs();
+  // 기록 실시간 업데이트 (5초마다)
+  setInterval(loadLogs, 5000);
+}
+init();
+</script>
+</body>
+</html>

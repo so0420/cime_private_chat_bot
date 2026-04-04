@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Build
+build/
+dist/
+*.spec
+exe/
+cime_bot.zip
+build.txt
+
+# Runtime data
+bot.db
+favicon.ico
+
+# Example
+example/
+
+# AI
+.claude/
+CLAUDE.md
